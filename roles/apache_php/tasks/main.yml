@@ -1,9 +1,8 @@
 ---
 - name: Instalar Apache y PHP
-  ansible.builtin.package:
+  community.general.zypper:
     name: "{{ apache_php_packages }}"
     state: present
-    use: zypper
 
 - name: Habilitar e iniciar Apache
   ansible.builtin.service:

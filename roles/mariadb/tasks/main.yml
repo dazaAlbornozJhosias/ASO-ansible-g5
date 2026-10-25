@@ -1,9 +1,8 @@
 ---
 - name: Instalar MariaDB
-  ansible.builtin.package:
+  community.general.zypper:
     name: "{{ mariadb_packages }}"
     state: present
-    use: zypper
 
 - name: Crear directorio de configuracion extra
   ansible.builtin.file:

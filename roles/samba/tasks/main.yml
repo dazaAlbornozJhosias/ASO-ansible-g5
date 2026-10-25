@@ -1,9 +1,8 @@
 ---
 - name: Instalar Samba
-  ansible.builtin.package:
+  community.general.zypper:
     name: "{{ samba_packages }}"
     state: present
-    use: zypper
 
 - name: Crear usuario del sistema
   ansible.builtin.user:
