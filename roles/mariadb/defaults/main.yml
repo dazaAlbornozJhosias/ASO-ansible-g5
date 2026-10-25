@@ -1,0 +1,6 @@
+---
+mariadb_packages:
+  - mariadb
+  - mariadb-client
+mariadb_database: appdb
+mariadb_app_user: appuser

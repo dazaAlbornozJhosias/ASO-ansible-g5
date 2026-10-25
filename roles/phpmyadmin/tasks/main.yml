@@ -1,0 +1,7 @@
+---
+- name: Instalar phpMyAdmin
+  ansible.builtin.package:
+    name: "{{ phpmyadmin_package }}"
+    state: present
+    use: zypper
+  notify: Reiniciar apache

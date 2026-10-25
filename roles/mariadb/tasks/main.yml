@@ -1,0 +1,54 @@
+---
+- name: Instalar MariaDB
+  ansible.builtin.package:
+    name: "{{ mariadb_packages }}"
+    state: present
+    use: zypper
+
+- name: Crear directorio de configuracion extra
+  ansible.builtin.file:
+    path: /etc/my.cnf.d
+    state: directory
+    mode: "0755"
+
+- name: Configurar MariaDB (solo local, sin resolucion DNS)
+  ansible.builtin.template:
+    src: ansible.cnf.j2
+    dest: /etc/my.cnf.d/ansible.cnf
+    mode: "0644"
+  notify: Reiniciar mariadb
+
+- name: Habilitar e iniciar MariaDB
+  ansible.builtin.service:
+    name: mariadb
+    state: started
+    enabled: true
+
+- name: Aplicar cambios pendientes
+  ansible.builtin.meta: flush_handlers
+
+- name: Comprobar si root ya usa contrasena
+  ansible.builtin.command: mariadb -uroot -e "SELECT 1"
+  environment:
+    MYSQL_PWD: "{{ vault_mariadb_root_password }}"
+  register: mariadb_root_login
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Establecer contrasena de root
+  ansible.builtin.command: >
+    mariadb -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ vault_mariadb_root_password }}'; FLUSH PRIVILEGES;"
+  when: mariadb_root_login.rc != 0
+  no_log: true
+
+- name: Crear base de datos y usuario de aplicacion
+  ansible.builtin.command: >
+    mariadb -uroot -e "CREATE DATABASE IF NOT EXISTS {{ mariadb_database }};
+    CREATE USER IF NOT EXISTS '{{ mariadb_app_user }}'@'localhost' IDENTIFIED BY '{{ vault_mariadb_app_password }}';
+    GRANT ALL PRIVILEGES ON {{ mariadb_database }}.* TO '{{ mariadb_app_user }}'@'localhost';
+    FLUSH PRIVILEGES;"
+  environment:
+    MYSQL_PWD: "{{ vault_mariadb_root_password }}"
+  changed_when: false
+  no_log: true
