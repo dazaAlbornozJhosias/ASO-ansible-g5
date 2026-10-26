@@ -1,0 +1,13 @@
+---
+- name: Reiniciar postgresql
+  ansible.builtin.service:
+    name: postgresql
+    state: restarted
+
+- name: Reiniciar apache para cargar php-pgsql
+  ansible.builtin.service:
+    name: apache2
+    state: restarted
+
+- name: Recargar firewall postgresql
+  ansible.builtin.command: firewall-cmd --reload

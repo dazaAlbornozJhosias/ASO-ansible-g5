@@ -3,3 +3,6 @@
 vault_samba_password: "CAMBIAR"
 vault_mariadb_root_password: "CAMBIAR"
 vault_mariadb_app_password: "CAMBIAR"
+vault_ftp_password: "CAMBIAR_CLAVE_FTP"
+vault_postgres_password: "CAMBIAR_CLAVE_POSTGRES"
+vault_pg_user_password: "CAMBIAR_CLAVE_PGUSER"

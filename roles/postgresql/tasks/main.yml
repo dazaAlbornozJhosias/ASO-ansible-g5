@@ -1,0 +1,136 @@
+---
+- name: Instalar PostgreSQL, libreria PHP y openssl
+  community.general.zypper:
+    name: "{{ postgresql_packages }}"
+    state: present
+  notify: Reiniciar apache para cargar php-pgsql
+
+- name: Habilitar e iniciar postgresql
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true
+
+- name: Esperar a que exista el directorio de datos
+  ansible.builtin.wait_for:
+    path: "{{ postgresql_data_dir }}/PG_VERSION"
+    timeout: 60
+
+- name: Generar certificado SSL autofirmado
+  ansible.builtin.command: >
+    openssl req -new -x509 -days 3650 -nodes -text
+    -out {{ postgresql_data_dir }}/server.crt
+    -keyout {{ postgresql_data_dir }}/server.key
+    -subj "/CN={{ postgresql_cert_cn }}"
+  args:
+    creates: "{{ postgresql_data_dir }}/server.crt"
+  notify: Reiniciar postgresql
+
+- name: Ajustar propietario y permisos del certificado y la llave
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: postgres
+    group: postgres
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ postgresql_data_dir }}/server.crt", mode: "0644" }
+    - { path: "{{ postgresql_data_dir }}/server.key", mode: "0600" }
+
+- name: Escuchar en todas las interfaces
+  ansible.builtin.lineinfile:
+    path: "{{ postgresql_data_dir }}/postgresql.conf"
+    regexp: '^#?\s*listen_addresses\s*='
+    line: "listen_addresses = '*'"
+  notify: Reiniciar postgresql
+
+- name: Activar SSL
+  ansible.builtin.lineinfile:
+    path: "{{ postgresql_data_dir }}/postgresql.conf"
+    regexp: '^#?\s*ssl\s*='
+    line: "ssl = on"
+  notify: Reiniciar postgresql
+
+- name: Permitir conexiones remotas solo con SSL (pg_hba.conf)
+  ansible.builtin.blockinfile:
+    path: "{{ postgresql_data_dir }}/pg_hba.conf"
+    insertbefore: BOF
+    marker: "# {mark} ANSIBLE postgresql remoto"
+    block: |
+      hostssl   all   all   {{ postgresql_allowed_network }}   scram-sha-256
+      hostnossl all   all   {{ postgresql_allowed_network }}   reject
+  notify: Reiniciar postgresql
+
+- name: Comprobar si postgres ya tiene contrasena
+  ansible.builtin.command: >
+    runuser -u postgres -- psql -tAc
+    "SELECT rolpassword IS NOT NULL FROM pg_authid WHERE rolname='postgres'"
+  args:
+    chdir: /tmp
+  register: pg_postgres_pw
+  changed_when: false
+
+- name: Fijar contrasena del usuario postgres
+  ansible.builtin.shell: >
+    printf "ALTER ROLE postgres PASSWORD :'pw';\n" |
+    runuser -u postgres -- psql -v ON_ERROR_STOP=1 -v pw="$PG_PASS"
+  args:
+    chdir: /tmp
+  environment:
+    PG_PASS: "{{ vault_postgres_password }}"
+  when: pg_postgres_pw.stdout != 't'
+  no_log: true
+
+- name: Comprobar si el usuario nuevo existe
+  ansible.builtin.command: >
+    runuser -u postgres -- psql -tAc
+    "SELECT 1 FROM pg_roles WHERE rolname='{{ postgresql_app_user }}'"
+  args:
+    chdir: /tmp
+  register: pg_user_exists
+  changed_when: false
+
+- name: Crear usuario nuevo
+  ansible.builtin.shell: >
+    printf "CREATE ROLE %s LOGIN PASSWORD :'pw';\n" "{{ postgresql_app_user }}" |
+    runuser -u postgres -- psql -v ON_ERROR_STOP=1 -v pw="$PG_PASS"
+  args:
+    chdir: /tmp
+  environment:
+    PG_PASS: "{{ vault_pg_user_password }}"
+  when: pg_user_exists.stdout != '1'
+  no_log: true
+
+- name: Comprobar si la base nueva existe
+  ansible.builtin.command: >
+    runuser -u postgres -- psql -tAc
+    "SELECT 1 FROM pg_database WHERE datname='{{ postgresql_app_db }}'"
+  args:
+    chdir: /tmp
+  register: pg_db_exists
+  changed_when: false
+
+- name: Crear base nueva
+  ansible.builtin.command: >
+    runuser -u postgres -- psql -v ON_ERROR_STOP=1 -c
+    "CREATE DATABASE {{ postgresql_app_db }} OWNER {{ postgresql_app_user }}"
+  args:
+    chdir: /tmp
+  when: pg_db_exists.stdout != '1'
+
+- name: Comprobar si firewalld esta activo
+  ansible.builtin.command: systemctl is-active firewalld
+  register: pg_fw
+  changed_when: false
+  failed_when: false
+
+- name: Comprobar si postgresql ya esta permitido
+  ansible.builtin.command: firewall-cmd --permanent --query-service=postgresql
+  register: pg_fw_rule
+  changed_when: false
+  failed_when: false
+  when: pg_fw.stdout == 'active'
+
+- name: Permitir postgresql en el firewall
+  ansible.builtin.command: firewall-cmd --permanent --add-service=postgresql
+  when: pg_fw.stdout == 'active' and pg_fw_rule.rc != 0
+  notify: Recargar firewall postgresql

@@ -17,3 +17,5 @@
     - { role: mariadb,    tags: [mariadb, lamp] }
     - { role: phpmyadmin, tags: [phpmyadmin, lamp] }
     - { role: samba,      tags: [samba] }
+    - { role: vsftpd,     tags: [vsftpd] }
+    - { role: postgresql, tags: [postgresql] }

@@ -1,0 +1,10 @@
+---
+postgresql_packages:
+  - postgresql-server
+  - php8-pgsql
+  - openssl
+postgresql_data_dir: /var/lib/pgsql/data
+postgresql_app_user: pguser
+postgresql_app_db: pgdb
+postgresql_allowed_network: 192.168.0.0/24
+postgresql_cert_cn: destino

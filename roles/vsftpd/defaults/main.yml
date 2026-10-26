@@ -1,0 +1,8 @@
+---
+vsftpd_packages:
+  - vsftpd
+vsftpd_user: ftpuser
+vsftpd_base_dir: /srv/ftp
+vsftpd_home: /srv/ftp/ftpuser
+vsftpd_pasv_min: 40000
+vsftpd_pasv_max: 40100

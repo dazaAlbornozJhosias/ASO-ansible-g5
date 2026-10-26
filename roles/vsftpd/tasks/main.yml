@@ -1,0 +1,109 @@
+---
+- name: Instalar vsftpd
+  community.general.zypper:
+    name: "{{ vsftpd_packages }}"
+    state: present
+
+- name: Registrar nologin como shell valida (PAM de vsftpd)
+  ansible.builtin.lineinfile:
+    path: /etc/shells
+    line: /usr/sbin/nologin
+
+- name: Crear directorio base de FTP
+  ansible.builtin.file:
+    path: "{{ vsftpd_base_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Crear usuario FTP
+  ansible.builtin.user:
+    name: "{{ vsftpd_user }}"
+    home: "{{ vsftpd_home }}"
+    shell: /usr/sbin/nologin
+    create_home: true
+    state: present
+
+- name: Ajustar permisos del home FTP
+  ansible.builtin.file:
+    path: "{{ vsftpd_home }}"
+    state: directory
+    owner: "{{ vsftpd_user }}"
+    group: "{{ vsftpd_user }}"
+    mode: "0755"
+
+- name: Comprobar estado de la contrasena del usuario FTP
+  ansible.builtin.command: passwd -S {{ vsftpd_user }}
+  register: vsftpd_pw_status
+  changed_when: false
+
+- name: Fijar contrasena del usuario FTP
+  ansible.builtin.shell: >
+    printf '%s:%s\n' '{{ vsftpd_user }}' "$FTP_PASS" | chpasswd
+  environment:
+    FTP_PASS: "{{ vault_ftp_password }}"
+  when: vsftpd_pw_status.stdout.split()[1] != 'P'
+  no_log: true
+
+- name: Limitar el acceso FTP al usuario definido
+  ansible.builtin.copy:
+    content: "{{ vsftpd_user }}\n"
+    dest: /etc/vsftpd.user_list
+    mode: "0644"
+  notify: Reiniciar vsftpd
+
+- name: Desplegar vsftpd.conf
+  ansible.builtin.template:
+    src: vsftpd.conf.j2
+    dest: /etc/vsftpd.conf
+    mode: "0600"
+  notify: Reiniciar vsftpd
+
+- name: Habilitar e iniciar vsftpd
+  ansible.builtin.service:
+    name: vsftpd
+    state: started
+    enabled: true
+
+- name: Comprobar boolean SELinux de FTP
+  ansible.builtin.command: getsebool ftpd_full_access
+  register: vsftpd_sebool
+  changed_when: false
+  failed_when: false
+
+- name: Permitir a vsftpd escribir en los directorios de usuario (SELinux)
+  ansible.builtin.command: setsebool -P ftpd_full_access on
+  when: vsftpd_sebool.rc == 0 and 'off' in vsftpd_sebool.stdout
+
+- name: Comprobar si firewalld esta activo
+  ansible.builtin.command: systemctl is-active firewalld
+  register: vsftpd_fw
+  changed_when: false
+  failed_when: false
+
+- name: Comprobar si el servicio ftp ya esta permitido
+  ansible.builtin.command: firewall-cmd --permanent --query-service=ftp
+  register: vsftpd_fw_svc
+  changed_when: false
+  failed_when: false
+  when: vsftpd_fw.stdout == 'active'
+
+- name: Permitir ftp en el firewall
+  ansible.builtin.command: firewall-cmd --permanent --add-service=ftp
+  when: vsftpd_fw.stdout == 'active' and vsftpd_fw_svc.rc != 0
+  notify: Recargar firewall ftp
+
+- name: Comprobar si los puertos pasivos ya estan permitidos
+  ansible.builtin.command: >
+    firewall-cmd --permanent --query-port={{ vsftpd_pasv_min }}-{{ vsftpd_pasv_max }}/tcp
+  register: vsftpd_fw_pasv
+  changed_when: false
+  failed_when: false
+  when: vsftpd_fw.stdout == 'active'
+
+- name: Permitir puertos pasivos en el firewall
+  ansible.builtin.command: >
+    firewall-cmd --permanent --add-port={{ vsftpd_pasv_min }}-{{ vsftpd_pasv_max }}/tcp
+  when: vsftpd_fw.stdout == 'active' and vsftpd_fw_pasv.rc != 0
+  notify: Recargar firewall ftp
