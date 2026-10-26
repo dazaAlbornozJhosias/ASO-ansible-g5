@@ -1,0 +1,8 @@
+---
+- name: Reiniciar postgresql
+  ansible.builtin.service:
+    name: postgresql
+    state: restarted
+
+- name: Recargar firewall PostgreSQL
+  ansible.builtin.command: firewall-cmd --reload

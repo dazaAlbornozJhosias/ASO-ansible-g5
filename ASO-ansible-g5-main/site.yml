@@ -1,0 +1,22 @@
+---
+- name: Task 3/5 - Desplegar LAMP, Samba, FTP y PostgreSQL
+  hosts: destinos
+  become: true
+  gather_facts: false
+
+  pre_tasks:
+    - name: Evitar bloqueo de zypper por PackageKit
+      ansible.builtin.systemd:
+        name: packagekit
+        state: stopped
+        masked: true
+      failed_when: false
+      tags: [always]
+
+  roles:
+    - { role: apache_php, tags: [apache, lamp] }
+    - { role: mariadb, tags: [mariadb, lamp] }
+    - { role: phpmyadmin, tags: [phpmyadmin, lamp] }
+    - { role: samba, tags: [samba] }
+    - { role: ftp, tags: [ftp] }
+    - { role: postgresql, tags: [postgresql, postgres] }

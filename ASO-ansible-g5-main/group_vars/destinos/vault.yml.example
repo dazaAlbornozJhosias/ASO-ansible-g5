@@ -1,0 +1,8 @@
+# Copiar a vault.yml, completar secretos y cifrar con ansible-vault encrypt.
+# Nunca subir vault.yml descifrado al repositorio.
+vault_samba_password: "CAMBIAR"
+vault_mariadb_root_password: "CAMBIAR"
+vault_mariadb_app_password: "CAMBIAR"
+vault_ftp_password: "CAMBIAR"
+vault_postgresql_root_password: "CAMBIAR"
+vault_postgresql_app_password: "CAMBIAR"

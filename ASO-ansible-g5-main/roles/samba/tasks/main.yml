@@ -1,0 +1,66 @@
+---
+- name: Instalar Samba
+  community.general.zypper:
+    name: "{{ samba_packages }}"
+    state: present
+
+- name: Crear usuario del sistema
+  ansible.builtin.user:
+    name: "{{ samba_system_user }}"
+    shell: /usr/sbin/nologin
+    create_home: false
+    state: present
+
+- name: Crear directorio compartido
+  ansible.builtin.file:
+    path: "{{ samba_share_path }}"
+    state: directory
+    owner: "{{ samba_system_user }}"
+    group: "{{ samba_system_user }}"
+    mode: "0775"
+
+- name: Comprobar si el usuario samba existe
+  ansible.builtin.command: pdbedit -L
+  register: samba_users
+  changed_when: false
+
+- name: Crear usuario samba
+  ansible.builtin.shell: >
+    printf '%s\n%s\n' "$SMB_PASS" "$SMB_PASS" | smbpasswd -a -s {{ samba_system_user }}
+  environment:
+    SMB_PASS: "{{ vault_samba_password }}"
+  when: (samba_system_user ~ ':') not in samba_users.stdout
+  no_log: true
+
+- name: Desplegar smb.conf con create mask y directory mask
+  ansible.builtin.template:
+    src: smb.conf.j2
+    dest: /etc/samba/smb.conf
+    mode: "0644"
+    validate: "testparm -s %s"
+  notify: Reiniciar samba
+
+- name: Habilitar e iniciar smb y nmb
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop: [smb, nmb]
+
+- name: Comprobar si firewalld esta activo
+  ansible.builtin.command: systemctl is-active firewalld
+  register: samba_fw
+  changed_when: false
+  failed_when: false
+
+- name: Comprobar si samba ya esta permitido
+  ansible.builtin.command: firewall-cmd --permanent --query-service=samba
+  register: samba_fw_rule
+  changed_when: false
+  failed_when: false
+  when: samba_fw.stdout == 'active'
+
+- name: Permitir samba en el firewall
+  ansible.builtin.command: firewall-cmd --permanent --add-service=samba
+  when: samba_fw.stdout == 'active' and samba_fw_rule.rc != 0
+  notify: Recargar firewall

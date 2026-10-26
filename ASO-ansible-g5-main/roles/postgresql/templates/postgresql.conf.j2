@@ -1,0 +1,6 @@
+# Gestionado por Ansible
+listen_addresses = '{{ postgresql_listen_addresses }}'
+password_encryption = 'scram-sha-256'
+ssl = on
+ssl_cert_file = '{{ postgresql_data_dir }}/server.crt'
+ssl_key_file = '{{ postgresql_data_dir }}/server.key'
