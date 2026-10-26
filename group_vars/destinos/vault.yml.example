@@ -1,5 +1,0 @@
-# Copiar a vault.yml, poner contrasenas reales y cifrar con:
-#   ansible-vault encrypt group_vars/destinos/vault.yml
-vault_samba_password: "CAMBIAR"
-vault_mariadb_root_password: "CAMBIAR"
-vault_mariadb_app_password: "CAMBIAR"
