@@ -1,6 +1,0 @@
-Nombre y Apellido, Grupo, codsis, celular
-Ana Gabriela Padilla, 1, 201910051, 67585273
-Elmer Romero Gonzales, 1, 202203220, 73696537
-Paola Jennifer Quispe Maita, 1, 202108209, 77960751
-Jhosias Daza Albornoz, 1, 202210881, 76967431
-NOMBRE APELLIDO, 1, CODSIS, CELULAR
