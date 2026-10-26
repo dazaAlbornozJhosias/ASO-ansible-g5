@@ -1,4 +1,0 @@
-inventory/hosts.ini
-group_vars/destinos/vault.yml
-*.retry
-.vault_pass*
