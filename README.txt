@@ -14,9 +14,10 @@ Requisitos
  - En openSUSE, sudo pide la contrasena de root (no la del usuario): esa es
    la que se escribe en "BECOME password".
 
-1. Clonar el repositorio y entrar a la carpeta:
+1. Obtener el proyecto y entrar a la carpeta:
      git clone https://github.com/dazaAlbornozJhosias/ASO-ansible-g5.git
      cd ASO-ansible-g5
+   (o descomprimir el zip entregado y entrar a la carpeta que se crea)
 
 2. Instalar la coleccion necesaria (community.general):
      ansible-galaxy collection install -r requirements.yml
