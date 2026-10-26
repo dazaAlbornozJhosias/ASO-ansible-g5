@@ -1,0 +1,7 @@
+---
+apache_php_packages:
+  - apache2
+  - php8
+  - php8-cli
+  - php8-mysql
+  - apache2-mod_php8

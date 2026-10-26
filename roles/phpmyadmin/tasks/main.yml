@@ -1,0 +1,15 @@
+---
+- name: Instalar phpMyAdmin
+  community.general.zypper:
+    name: "{{ phpmyadmin_package }}"
+    state: present
+  notify: Reiniciar apache
+
+- name: Desplegar alias de Apache para phpMyAdmin
+  ansible.builtin.template:
+    src: phpMyAdmin.conf.j2
+    dest: /etc/apache2/conf.d/phpMyAdmin.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reiniciar apache

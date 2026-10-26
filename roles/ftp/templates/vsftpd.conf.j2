@@ -1,0 +1,20 @@
+# Gestionado por Ansible. FTP sin TLS: usar solo en laboratorio/red confiable.
+listen=YES
+listen_ipv6=NO
+anonymous_enable=NO
+local_enable=YES
+write_enable={{ 'YES' if ftp_allow_write else 'NO' }}
+local_umask=022
+dirmessage_enable=YES
+use_localtime=YES
+xferlog_enable=YES
+connect_from_port_20=YES
+chroot_local_user=YES
+allow_writeable_chroot=YES
+local_root={{ ftp_root }}
+user_sub_token=$USER
+pam_service_name=vsftpd
+ssl_enable=NO
+pasv_enable=YES
+pasv_min_port={{ ftp_passive_min_port }}
+pasv_max_port={{ ftp_passive_max_port }}
