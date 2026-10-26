@@ -1,8 +1,0 @@
----
-ftp_packages:
-  - vsftpd
-ftp_user: ftpuser
-ftp_root: /srv/ftp/Compartido
-ftp_passive_min_port: 30000
-ftp_passive_max_port: 30100
-ftp_allow_write: true

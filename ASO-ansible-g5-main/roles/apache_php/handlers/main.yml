@@ -1,8 +1,0 @@
----
-- name: Reiniciar apache
-  ansible.builtin.service:
-    name: apache2
-    state: restarted
-
-- name: Recargar firewall
-  ansible.builtin.command: firewall-cmd --reload

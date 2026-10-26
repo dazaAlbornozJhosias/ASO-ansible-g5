@@ -1,7 +1,0 @@
-# TYPE  DATABASE        USER             ADDRESS                 METHOD
-local   all             postgres                                 peer
-local   all             all                                      peer
-host    all             all              127.0.0.1/32            scram-sha-256
-host    all             all              ::1/128                 scram-sha-256
-# Solo conexiones remotas cifradas desde la red autorizada
-hostssl all             all              {{ postgresql_allowed_cidr }} scram-sha-256
