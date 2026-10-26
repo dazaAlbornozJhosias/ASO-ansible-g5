@@ -1,7 +1,0 @@
-# Copiar a hosts.ini y cambiar IP y usuario.
-# No se guarda ninguna contrasena aqui: se usa autenticacion por llave SSH.
-[destinos]
-lamp-server ansible_host=192.168.X.X ansible_user=USUARIO
-
-[destinos:vars]
-ansible_become=true
