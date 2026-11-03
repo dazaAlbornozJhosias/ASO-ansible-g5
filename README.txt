@@ -1,4 +1,3 @@
-
 README - PROYECTO ANSIBLE
 
 1. ENLACE AL REPOSITORIO DE GITHUB
@@ -49,6 +48,7 @@ Se necesita:
 - Un usuario con acceso SSH al servidor destino.
 - La contraseña de ese usuario.
 - La contraseña de sudo o de escalación de privilegios, si es diferente.
+  En openSUSE, sudo pide la contraseña de root (no la del usuario).
 - La contraseña de Ansible Vault utilizada para proteger las variables sensibles del proyecto.
   contraseña:2468
 2.4. Instalar Ansible y las herramientas necesarias en la VM 01
@@ -79,6 +79,30 @@ Se necesita:
  python3 --version
  ssh -V
  git --version
+ Paso 4. Instalar las herramientas adicionales que usa el proyecto
+ Ejecutar:
+ sudo zypper install sshpass python313-passlib
+ ansible-galaxy collection install community.general
+ Estas herramientas cumplen las siguientes funciones:
+ sshpass: permite que Ansible use la contraseña SSH que se escribe con --ask-pass.
+ python313-passlib: necesario en la VM 01 para cifrar la contraseña del usuario FTP. Si falta, la tarea "Crear usuario local para FTP" falla sin mostrar el motivo.
+ community.general: colección de Ansible con los módulos que usan los roles del proyecto.
+
+2.5. Preparar el servidor destino (VM 02)
+
+En la VM 02, con un usuario con permisos de administrador, ejecutar una sola vez los siguientes comandos antes del primer despliegue. Sustituir USUARIO por el usuario SSH que se usará (en este README, elmer):
+
+    echo 'Defaults:USUARIO rootpw' | sudo tee -a /etc/sudoers.d/USUARIO
+    sudo chmod 440 /etc/sudoers.d/USUARIO
+    sudo visudo -cf /etc/sudoers.d/USUARIO
+    sudo setsebool -P ftpd_full_access 1
+
+El comando visudo debe mostrar "parsed OK".
+
+Función de cada ajuste:
+
+- rootpw: hace que sudo pida siempre la contraseña de root, también cuando Ansible ejecuta tareas como el usuario postgres. Sin este ajuste, la inicialización de PostgreSQL falla con "Incorrect sudo password".
+- ftpd_full_access: permite que SELinux deje a vsftpd escribir en el directorio del usuario FTP. Sin este ajuste, la subida de archivos por FTP falla con el error 553.
 
 3. PREPARACIÓN DEL PROYECTO
 
@@ -172,7 +196,7 @@ El comando utiliza los siguientes parámetros:
 
 - -i inventory/hosts.ini: indica el archivo de inventario.
 - site.yml: identifica el playbook principal.
-- -u elmer: indica el usuario utilizado para conectarse al servidor destino.
+- -u elmer: indica el usuario utilizado para conectarse al servidor destino. Sustituir elmer por el usuario real del servidor destino.
 - --ask-pass: solicita la contraseña SSH.
 - --ask-become-pass: solicita la contraseña para obtener privilegios administrativos.
 - --ask-vault-pass: solicita la contraseña para descifrar las variables protegidas con Ansible Vault.
@@ -183,7 +207,7 @@ SSH password:
 Introducir la contraseña del usuario remoto.
 
 BECOME password:
-Introducir la contraseña de sudo si se solicita.
+Introducir la contraseña de sudo si se solicita. En openSUSE es la contraseña de root; no pulsar solo Enter si es distinta de la contraseña SSH.
 
 Vault password:
 Introducir la contraseña de Ansible Vault del proyecto:2468.
@@ -218,3 +242,56 @@ Para esta práctica, el resultado obtenido fue:
     skipped=5
 
 El valor failed=0 indica que ninguna tarea falló durante esa ejecución. El valor unreachable=0 indica que no hubo errores de conexión reportados por Ansible.
+
+Si se vuelve a ejecutar el playbook sobre un servidor ya configurado, casi todas las tareas salen en ok. Se espera changed=2: corresponden a la tarea "Permitir FTP y puertos pasivos en firewalld" y a su handler, porque firewall-cmd siempre se marca como cambiado. Resultado obtenido en una ejecución completa sobre un servidor ya configurado:
+
+    ok=43
+    changed=2
+    unreachable=0
+    failed=0
+    skipped=5
+
+9. VERIFICAR LOS SERVICIOS DESPLEGADOS
+
+Sustituir IP por la dirección de la VM 02. Las contraseñas del usuario FTP (vault_ftp_password) y del usuario de PostgreSQL (vault_postgresql_app_password) están en el vault. Para consultarlas, en la VM 01:
+
+    ansible-vault view group_vars/destinos/vault.yml
+
+- Apache, PHP y phpMyAdmin (desde la VM 01):
+
+    curl -I http://IP/phpMyAdmin/
+
+  Debe responder HTTP/1.1 200 OK.
+
+- Samba (en la VM 02):
+
+    systemctl is-active smb nmb
+    sudo testparm -s | grep -A8 Compartido
+
+  Debe mostrar dos veces active y el recurso [Compartido] con create mask 0664 y directory mask 0775.
+
+- FTP (desde la VM 01), con el usuario ftpuser:
+
+    echo prueba > p.txt
+    curl --user 'ftpuser:CLAVE' -T p.txt ftp://IP/
+    curl --user 'ftpuser:CLAVE' ftp://IP/
+
+  El segundo comando debe listar p.txt.
+
+- PostgreSQL (desde la VM 01). Si no tiene el cliente psql, instalarlo con sudo zypper install postgresql:
+
+    PGPASSWORD='CLAVE' psql "host=IP dbname=appdb_pg user=appuser_pg sslmode=require" -c "select version();"
+    PGPASSWORD='CLAVE' psql "host=IP dbname=appdb_pg user=appuser_pg sslmode=disable" -c "select 1;"
+
+  El primer comando debe mostrar la versión de PostgreSQL. El segundo debe ser rechazado por pg_hba.conf con el mensaje "no encryption", porque solo se aceptan conexiones cifradas.
+
+10. PROBLEMAS FRECUENTES
+
+- La tarea "Crear usuario local para FTP" falla sin mostrar el motivo: falta passlib en la VM 01 (punto 2.4, Paso 4).
+- "Incorrect sudo password" al inicializar PostgreSQL: falta el ajuste rootpw en la VM 02 (punto 2.5).
+- Error 553 al subir un archivo por FTP: falta ftpd_full_access en la VM 02 (punto 2.5).
+- "Invalid/incorrect password": la contraseña SSH está mal escrita. Comprobarla con ssh USUARIO@IP.
+- "No route to host" o "UNREACHABLE": la VM 02 está apagada, congelada o cambió de IP (DHCP). Reiniciar la VM, comprobar la IP con hostname -I, actualizar inventory/hosts.ini y volver a ejecutar; el playbook se puede repetir sin problema.
+- Si la VM 02 se congela durante la instalación, ejecutar por partes con los tags apache, mariadb, phpmyadmin, samba, ftp y postgresql. Ejemplo:
+
+    ansible-playbook -i inventory/hosts.ini site.yml -u elmer --ask-pass --ask-become-pass --ask-vault-pass --tags samba
